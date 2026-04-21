@@ -32,7 +32,7 @@ class MiniMaxImageGenerator:
         Returns:
             dict: 包含 image_url 或 base64 数据
         """
-        url = f"{self.base_url}/visual /text_to_image"
+        url = f"{self.base_url}/image_generation"
         
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -51,29 +51,40 @@ class MiniMaxImageGenerator:
             response.raise_for_status()
             result = response.json()
             
-            # 提取图片数据
-            if result.get('data', {}).get('image_base64'):
-                image_data = result['data']['image_base64']
-                
-                # 保存到文件
-                if output_path is None:
-                    output_path = f"./generated_{uuid.uuid4().hex[:8]}.png"
-                
-                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-                with open(output_path, 'wb') as f:
-                    f.write(base64.b64decode(image_data))
-                
-                return {
-                    "success": True,
-                    "path": output_path,
-                    "prompt": prompt
-                }
+            # 提取图片数据（支持 base64 或 URL）
+            image_data = result.get('data', {})
+            image_url = None
+            
+            # 优先使用 base64
+            if image_data.get('image_base64'):
+                image_bytes = base64.b64decode(image_data['image_base64'])
+            # 其次使用 URL
+            elif image_data.get('image_urls') and len(image_data['image_urls']) > 0:
+                image_url = image_data['image_urls'][0]
+                image_response = requests.get(image_url, timeout=120)
+                image_response.raise_for_status()
+                image_bytes = image_response.content
             else:
                 return {
                     "success": False,
                     "error": "No image data in response",
                     "raw": result
                 }
+            
+            # 保存到文件
+            if output_path is None:
+                output_path = f"./generated_{uuid.uuid4().hex[:8]}.png"
+            
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'wb') as f:
+                f.write(image_bytes)
+            
+            return {
+                "success": True,
+                "path": output_path,
+                "url": image_url,
+                "prompt": prompt
+            }
                 
         except requests.exceptions.Timeout:
             return {
@@ -152,7 +163,7 @@ class MiniMaxImageGenerator:
         Returns:
             dict: 生成结果
         """
-        url = f"{self.base_url}/visual /image_to_image"
+        url = f"{self.base_url}/image_to_image"
         
         headers = {
             "Authorization": f"Bearer {self.token}",
