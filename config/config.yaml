@@ -1,0 +1,26 @@
+# novel-no-social 配置文件
+
+# API 配置
+minimax:
+  token: "sk-cp-QBz9N5h2gLhd5skUQuakC9xl5MpmAfyXNo3MHDc8P3PocK-pv4NWnlJtn0P2YIMBxr4Hh3SzalTlW__DzzERV-KfrMQGKBwbOXk3_IuKEwyFq8dCRk8msWk"
+  base_url: "https://api.minimaxi.com"
+  image_model: "image-01"
+
+qwen:
+  token: "sk-sp-24c19ee00acc4bae93d0983c74fa2854"
+  base_url: "https://coding.dashscope.aliyuncs.com/v1"
+  model: "qwen3.5-plus"
+
+tavily:
+  token: "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"
+
+# 写作配置
+writing:
+  words_per_episode: 3000
+  anti_ai_enabled: true
+
+# 发布配置
+publish:
+  zhihu_enabled: true
+  xhs_enabled: true
+  wechat_enabled: false
