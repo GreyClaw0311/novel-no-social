@@ -2,6 +2,7 @@
 """
 小说生成核心模块
 包括：选题收集、大纲生成、正文写作
+使用 MiniMax M2.7 模型进行文本生成
 """
 import json
 import requests
@@ -15,7 +16,7 @@ class NovelGenerator:
     
     def __init__(self):
         self.config = get_config()
-        self.qwen_config = self.config.qwen
+        self.minimax_config = self.config.minimax
         self.tavily_config = self.config.tavily
     
     def search_topics(self, keywords: list = None) -> list:
@@ -70,7 +71,7 @@ class NovelGenerator:
         
         return unique_topics[:10]
     
-    def generate_outline(self, meta: dict, target_words: int = 2000) -> dict:
+    def generate_outline(self, meta: dict, target_words: int = 2000) -> str:
         """
         生成故事大纲
         
@@ -79,7 +80,7 @@ class NovelGenerator:
             target_words: 目标字数
             
         Returns:
-            dict: 包含章节规划的大纲
+            str: 包含章节规划的大纲文本
         """
         # 构建 prompt
         prompt = f"""你是一位资深的科幻小说作家。请根据以下设定，为一部科幻小说生成详细大纲。
@@ -109,21 +110,13 @@ class NovelGenerator:
 
 要求：
 1. 每章有明确的核心冲突和悬念
-2. 总字数 {target_words} 字左右
+2. 总字数约 {target_words} 字左右
 3. 章节之间有递进关系
 4. 每话结尾留有钩子，吸引读者继续阅读
-
-请用 JSON 格式输出，包含以下字段：
-- chapters: 章节列表，每章包含：
-  - chapter_num: 章节编号
-  - chapter_title: 章节标题
-  - chapter_summary: 章节概要（200字）
-  - episodes: 话数
-  - episode_summaries: 每话概要（100字）
-- total_estimated_words: 预计总字数
+5. 格式清晰，便于后续写作参考
 """
         
-        response = self._call_qwen(prompt)
+        response = self._call_minimax(prompt)
         return response
     
     def write_episode(self, meta: dict, chapter: int, episode: int, 
@@ -180,7 +173,7 @@ class NovelGenerator:
 请直接输出正文内容。
 """
         
-        content = self._call_qwen(prompt)
+        content = self._call_minimax(prompt)
         return {
             "chapter": chapter,
             "episode": episode,
@@ -188,9 +181,9 @@ class NovelGenerator:
             "word_count": len(content)
         }
     
-    def _call_qwen(self, prompt: str) -> str:
+    def _call_minimax(self, prompt: str) -> str:
         """
-        调用 Qwen API
+        调用 MiniMax API 进行文本生成
         
         Args:
             prompt: 对话 prompt
@@ -198,14 +191,14 @@ class NovelGenerator:
         Returns:
             str: 返回的文本内容
         """
-        url = f"{self.qwen_config.get('base_url')}/chat/completions"
+        url = "https://api.minimaxi.com/v1/chat/completions"
         headers = {
-            "Authorization": f"Bearer {self.qwen_config.get('token')}",
+            "Authorization": f"Bearer {self.minimax_config.get('token')}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "model": self.qwen_config.get('model', 'qwen3.5-plus'),
+            "model": "MiniMax-M2.7",
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -214,12 +207,23 @@ class NovelGenerator:
         }
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=120)
+            response = requests.post(url, headers=headers, json=payload, timeout=300)
             response.raise_for_status()
             result = response.json()
             
             return result.get('choices', [{}])[0].get('message', {}).get('content', '')
             
+        except requests.exceptions.Timeout:
+            print("API 调用超时，等待重试...")
+            # 重试一次
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=300)
+                response.raise_for_status()
+                result = response.json()
+                return result.get('choices', [{}])[0].get('message', {}).get('content', '')
+            except Exception as e2:
+                print(f"重试失败: {e2}")
+                return f"Error: {e2}"
         except Exception as e:
             print(f"API 调用出错: {e}")
             return f"Error: {e}"
@@ -284,9 +288,7 @@ class NovelGenerator:
         with open(meta_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 简单的解析，可以根据需要改进
         meta = {"raw": content}
-        # 这里可以添加更复杂的解析逻辑
         return meta
 
 
@@ -296,7 +298,7 @@ def search_topics(keywords: list = None) -> list:
     return generator.search_topics(keywords)
 
 
-def generate_outline(meta: dict, target_words: int = 2000) -> dict:
+def generate_outline(meta: dict, target_words: int = 2000) -> str:
     """便捷函数：生成大纲"""
     generator = NovelGenerator()
     return generator.generate_outline(meta, target_words)
